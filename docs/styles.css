@@ -56,7 +56,7 @@ p { margin: 0; }
 .gate { min-height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr; background: var(--ink); color: #fff; }
 .gate__brand { position: relative; padding: clamp(28px, 5vw, 72px); display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border-right: 1px solid rgba(255,255,255,.08); }
 .gate__brand::before { content: ""; position: absolute; inset: auto -20% -30% auto; width: 70vmin; height: 70vmin; border-radius: 50%; background: radial-gradient(closest-side, rgba(178,254,0,.22), transparent 70%); pointer-events: none; }
-.gate__logo { height: 22px; width: auto; display: block; }
+.gate__logo { height: 26px; width: auto; display: block; align-self: flex-start; object-fit: contain; }
 .gate__headline { font-size: clamp(36px, 5vw, 72px); line-height: .98; letter-spacing: -.035em; max-width: 12ch; }
 .gate__headline em { font-style: normal; color: var(--lime); }
 .gate__sub { margin-top: 20px; max-width: 46ch; color: rgba(255,255,255,.62); font-size: 16px; }
