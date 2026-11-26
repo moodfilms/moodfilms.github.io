@@ -534,7 +534,7 @@
     document.getElementById("publish").onclick = async () => { const msg = document.getElementById("msg"), btn = document.getElementById("publish"); syncDraft();
       if (!gh.token()) { msg.className = "msg err"; msg.innerHTML = `No GitHub token yet: <a href="#/admin/settings" style="color:#fff">add one in Settings</a>, or download the JSON and run npm run publish on the Mac.`; return; }
       btn.disabled = true; msg.className = "msg"; msg.textContent = "Encrypting and publishing…";
-      try { const { kind, ...plain } = data; await publishBundle(slug, "client", plain); const { kind: k2, ...pi } = int; await publishBundle(slug, "internal", pi); delete drafts[slug]; msg.className = "msg ok"; msg.textContent = "Published. The live site updates in about a minute; the hub here already shows the new version."; setTimeout(() => { if (location.hash.endsWith("/admin")) renderEditor(slug); }, 1500); }
+      try { const { kind, ...plain } = data; await publishBundle(slug, "client", plain); const { kind: k2, ...pi } = int; await publishBundle(slug, "internal", pi); drafts[slug] = { data: structuredClone(session.clients[slug]), internal: structuredClone(session.internal[slug]) }; msg.className = "msg ok"; msg.textContent = "Published. The live site updates in about a minute; the hub here already shows the new version."; }
       catch (e) { msg.className = "msg err"; msg.textContent = e.message; } btn.disabled = false; };
   }
 
