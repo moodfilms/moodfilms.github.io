@@ -9,6 +9,6 @@
     "build": "node scripts/build.mjs",
     "fetch": "node scripts/fetch-monday.mjs",
     "serve": "python3 -m http.server 8787 --directory docs",
-    "publish": "node scripts/pull.mjs && node scripts/fetch-monday.mjs --if-configured && node scripts/build.mjs && git add -A docs && (git commit -q -m 'Refresh dashboards' || true) && git push -q"
+    "publish": "git pull -q --rebase && node scripts/pull.mjs && node scripts/fetch-monday.mjs --if-configured && node scripts/build.mjs && git add -A docs && (git commit -q -m 'Refresh dashboards' || true) && git push -q"
   }
 }
