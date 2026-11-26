@@ -329,7 +329,7 @@
         <div class="field"><label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
         <div class="field"><label for="p">Passcode</label><div class="pwwrap"><input id="p" name="password" type="password" autocomplete="current-password" required><button type="button" id="toggle-pw">Show</button></div></div>
         <div class="gate__error" id="err">${esc(error)}</div><button class="btn btn--lime btn--block" id="go" type="submit">Open dashboard</button>
-        <p class="gate__hint">Lost your passcode? Email <a href="mailto:hello@moodfilms.co.uk" style="color:#fff">hello@moodfilms.co.uk</a>.</p></form></section></div>`;
+        <p class="gate__hint">Lost your passcode? Email <a href="mailto:hello@moodstudio.co" style="color:#fff">hello@moodstudio.co</a>.</p></form></section></div>`;
     document.getElementById("toggle-pw").onclick = (e) => { const i = document.getElementById("p"); i.type = i.type === "password" ? "text" : "password"; e.target.textContent = i.type === "password" ? "Show" : "Hide"; };
     document.getElementById("login").onsubmit = async (e) => { e.preventDefault(); const btn = document.getElementById("go"), err = document.getElementById("err"); btn.disabled = true; btn.textContent = "Unlocking…"; err.textContent = "";
       try { await login(e.target.username.value, e.target.password.value); route(); } catch (ex) { err.textContent = ex.message || "Could not sign in."; btn.disabled = false; btn.textContent = "Open dashboard"; } };
