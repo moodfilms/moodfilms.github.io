@@ -1,0 +1,17 @@
+{
+  "team": {
+    "username": "mood",
+    "password": "change-me",
+    "label": "Mood Studio team"
+  },
+  "clients": [
+    {
+      "slug": "randstad",
+      "username": "randstad",
+      "password": "change-me",
+      "data": "data/randstad.json",
+      "internal": "data/randstad.internal.json",
+      "monday": { "board_id": null }
+    }
+  ]
+}

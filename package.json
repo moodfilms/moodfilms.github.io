@@ -1,0 +1,13 @@
+{
+  "name": "mood-client-hub",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mood Studio client dashboards: one passcode-locked site, one portal per client, team sees everything.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "fetch": "node scripts/fetch-monday.mjs",
+    "serve": "python3 -m http.server 8787 --directory docs",
+    "publish": "node scripts/fetch-monday.mjs --if-configured && node scripts/build.mjs && git add -A docs && git commit -m \"Refresh dashboards\" -q || true && git push"
+  }
+}

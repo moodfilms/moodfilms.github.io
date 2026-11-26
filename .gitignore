@@ -1,0 +1,6 @@
+# Credentials and plaintext client data never leave this Mac.
+config/clients.json
+data/
+secrets/
+node_modules/
+.DS_Store
