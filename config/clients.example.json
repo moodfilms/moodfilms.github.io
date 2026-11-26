@@ -1,4 +1,9 @@
 {
+  "hub": {
+    "repo": "moodfilms/mood-client-hub",
+    "branch": "main",
+    "dir": "docs/data"
+  },
   "team": {
     "username": "mood",
     "password": "change-me",
@@ -11,7 +16,9 @@
       "password": "change-me",
       "data": "data/randstad.json",
       "internal": "data/randstad.internal.json",
-      "monday": { "board_id": null }
+      "monday": {
+        "board_id": null
+      }
     }
   ]
 }
