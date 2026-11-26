@@ -5,6 +5,13 @@ Built for the Randstad retainer first; any client is added from the browser in a
 
 Live: https://moodfilms.github.io/mood-client-hub/ (moving to https://hub.moodstudio.co, see *Domain*)
 
+## What it tracks
+
+Every project Mood does, for every client, retainer or not. The team's **All projects** page lists
+them all in delivery order with stage, next step, cost and margin. Each project has a rundown page
+(production stages, deliverables, key dates, progress log, links, what we need from the client)
+that the client can open from their hub. A client on a retainer also gets the Retainer & money tab.
+
 ## Who sees what
 
 | Who | Username | Sees |
@@ -19,8 +26,9 @@ Live: https://moodfilms.github.io/mood-client-hub/ (moving to https://hub.moodst
 Sign in as the team → open a client → **Edit this hub**. Change the retainer, projects, payment
 schedule, updates, films, briefing details, what tabs they can see, and the Mood-only notes.
 **Publish to the live site** re-encrypts the hub in your browser and commits it to GitHub; the
-live site updates in about a minute. **Clients & logins** adds a client (hub + login), sets a
-client's username and passcode, or removes one.
+live site updates in about a minute. **Clients & logins** adds a client (hub + login, optionally with its first project), sets a
+client's username and passcode, or removes one. Project-based is the default; tick the retainer box
+for clients on a monthly allowance.
 
 Publishing needs a GitHub token once per browser: Settings → Developer settings → Fine-grained
 tokens → repository `moodfilms/mood-client-hub` only → Contents: Read and write. Paste it under

@@ -20,10 +20,15 @@
   const mkey = (d) => iso(d).slice(0, 7);
   const mlabel = (k) => parse(k + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" }).replace(" ", " ’");
   const isoToday = iso(TODAY);
-  const STATUSES = ["Briefing", "Approved", "In creative", "In production", "In post", "In grade", "Delivered", "On hold"];
+  const STATUSES = ["Briefing", "Approved", "In creative", "Pre-production", "In production", "In post", "In grade", "Delivered", "On hold"];
+  const STAGES = [{ k: "Brief", s: ["Briefing"] }, { k: "Approved", s: ["Approved"] }, { k: "Creative", s: ["In creative"] }, { k: "Pre-production", s: ["Pre-production"] }, { k: "Shoot", s: ["In production"] }, { k: "Edit", s: ["In post"] }, { k: "Grade & finish", s: ["In grade"] }, { k: "Delivered", s: ["Delivered"] }];
+  const stageIndex = (status) => STAGES.findIndex((st) => st.s.includes(status));
+  const parseLines = (text, sep = "|") => String(text || "").split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const i = l.indexOf(sep); return i < 0 ? [l, ""] : [l.slice(0, i).trim(), l.slice(i + 1).trim()]; });
+  const daysUntil = (s) => s ? dayDiff(TODAY, parse(s)) : null;
   const DONE = new Set(["Delivered"]);
   const ITERATIONS = 300000;
   const slugify = (s) => String(s).toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const dayDiff = (a, b) => Math.round((b - a) / 86400000);
   const h = (strings, ...vals) => strings.reduce((o, s, i) => o + s + (i < vals.length ? (Array.isArray(vals[i]) ? vals[i].join("") : vals[i] ?? "") : ""), "");
 
   /* ---------------- crypto ---------------- */
@@ -128,7 +133,7 @@
     try { await unwrap(Object.values(acct.keys)[0], kek); } catch { throw new Error("That passcode isn't right."); }
     session.kek = kek; return kek;
   }
-  async function createClient({ name, slug, username, password, accent, retainer }) {
+  async function createClient({ name, slug, username, password, accent, retainer, project }) {
     const kek = await ensureKek();
     const m = await gh.freshManifest();
     const teamId = await sha("acct:" + session.username.toLowerCase());
@@ -136,7 +141,7 @@
     if (Object.values(session.ids).length && session.ids[slug]) throw new Error("That slug already exists.");
     const clientKey = await newKey(), internalKey = await newKey();
     const clientId = await sha(`bundle:${slug}:client:${randomId()}`), internalId = await sha(`bundle:${slug}:internal:${randomId()}`);
-    const data = blankClient({ name, slug, accent, retainer });
+    const data = blankClient({ name, slug, accent, retainer }); if (project) data.projects.push(project);
     const internal = { slug, notes: "", risks: [], projects: {}, invoiced_by_month: {}, paid_by_month: {} };
     await gh.put(clientId + ".enc", JSON.stringify(await encryptJSON({ kind: "client", ...data, updated_at: new Date().toISOString() }, clientKey)), `Add ${slug}`);
     await gh.put(internalId + ".enc", JSON.stringify(await encryptJSON({ kind: "internal", ...internal }, internalKey)), `Add ${slug} (internal)`);
@@ -177,7 +182,6 @@
 
   /* ---------------- retainer maths (mirrors finance/retainers.py) ---------------- */
   const addMonths = (d, n) => { const x = new Date(d); x.setDate(1); x.setMonth(x.getMonth() + n); return x; };
-  const dayDiff = (a, b) => Math.round((b - a) / 86400000);
   function timeline(r) {
     const start = parse(r.start_date);
     const initialEnd = addMonths(start, +r.initial_months); initialEnd.setDate(0);
@@ -293,11 +297,11 @@
   }
   function projectCard(p) {
     return h`<article class="card pcard">${p.pinned ? `<span class="pin" title="Pinned"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 3l5 5-4 1-3.5 3.5.5 5.5-2 2-4-4-5 5-1-1 5-5-4-4 2-2 5.5.5L14 7z"/></svg></span>` : ""}
-      <div class="pcard__top">${pill(p.status)}<span class="pcard__dept">${esc(p.department || "")}</span></div><h3>${esc(p.name)}</h3>
+      <div class="pcard__top">${pill(p.status)}<span class="pcard__dept">${esc(p.department || "")}</span></div><h3><a class="plain" href="#/c/${esc(p.__slug)}/p/${esc(p.id)}">${esc(p.name)}</a></h3>
       ${p.summary ? `<p class="pcard__sum">${esc(p.summary)}</p>` : ""}${p.deliverables?.length ? `<div class="tags">${p.deliverables.map((d) => `<span class="tag">${esc(d)}</span>`).join("")}</div>` : ""}
-      <div class="pcard__meta"><div><span>Expected delivery</span><b>${fmtDate(p.expected_delivery)}</b></div><div><span>${p.client_cost ? "Cost to retainer" : "Cost"}</span><b>${p.client_cost ? money(p.client_cost) : "TBC"}</b></div></div>
+      <div class="pcard__meta"><div><span>Expected delivery</span><b>${fmtDate(p.expected_delivery)}</b></div><div><span>${p.__ret ? "Cost to retainer" : "Cost"}</span><b>${p.client_cost ? money(p.client_cost) : "TBC"}</b></div></div>
       ${p.next_step ? `<p class="pcard__next">${esc(p.next_step)}</p>` : ""}
-      <div class="pcard__actions">${p.frame_link ? `<a class="btn btn--ink btn--sm" href="${esc(p.frame_link)}" target="_blank" rel="noopener">Latest draft ${extIcon}</a>` : `<span class="faint" style="font-size:13px">Draft link appears here when there's a cut to review</span>`}</div></article>`;
+      <div class="pcard__actions"><a class="btn btn--ink btn--sm" href="#/c/${esc(p.__slug)}/p/${esc(p.id)}">Full rundown →</a>${p.frame_link ? `<a class="btn btn--ghost btn--sm" href="${esc(p.frame_link)}" target="_blank" rel="noopener">Latest draft ${extIcon}</a>` : ""}</div></article>`;
   }
   function modalPrompt(title, text, type = "text", placeholder = "") {
     return new Promise((resolve) => {
@@ -357,17 +361,18 @@
   function renderPortfolio() {
     const slugs = Object.keys(session.clients).sort();
     const rows = slugs.map((slug) => { const c = session.clients[slug]; const m = c.retainer ? computeMoney(c.retainer, c.projects || [], session.internal[slug]) : null; return { slug, c, m, hl: health(m), live: (c.projects || []).filter((p) => !DONE.has(p.status)).length }; });
-    const totals = rows.reduce((t, r) => { t.contract += r.m?.contractValue || 0; t.used += r.m?.used || 0; t.live += r.live; return t; }, { contract: 0, used: 0, live: 0 });
+    const totals = rows.reduce((t, r) => { t.contract += r.m?.contractValue || 0; t.used += r.m?.used || 0; t.live += r.live; t.retainers += r.m ? 1 : 0; return t; }, { contract: 0, used: 0, live: 0, retainers: 0 });
+    const month = isoToday.slice(0, 7), dueMonth = rows.reduce((n, r) => n + (r.c.projects || []).filter((p) => !DONE.has(p.status) && (p.expected_delivery || "").startsWith(month)).length, 0);
     shell(h`<div class="page-head"><div><span class="eyebrow">Mood Studio · internal</span><h1>Client dashboards</h1><p class="lead">Every client hub in one place. Open one to see it as the client does, edit what they see, or check the internal numbers.</p></div>
-      <div class="page-head__actions"><a class="btn btn--ghost" href="#/admin">Clients &amp; logins</a><a class="btn btn--ink" href="#/admin/new">+ Add a client</a></div></div>
-      <div class="grid grid--4" style="margin-bottom:28px">${stat("Clients", slugs.length, "with a live hub", "card--ink")}${stat("Contract value", money(totals.contract), "firm months across all retainers")}${stat("Committed", money(totals.used), "work charged to allowances")}${stat("Live projects", totals.live, "not yet delivered")}</div>
+      <div class="page-head__actions"><a class="btn btn--ghost" href="#/projects">All projects</a><a class="btn btn--ink" href="#/admin/new">+ Add a client</a></div></div>
+      <div class="grid grid--4" style="margin-bottom:28px">${stat("Clients", slugs.length, `${totals.retainers} on retainer`, "card--ink")}${stat("Live projects", totals.live, `<a href="#/projects" style="color:inherit">${dueMonth} due this month →</a>`)}${stat("Retainer value", money(totals.contract), "firm months across all retainers")}${stat("Committed", money(totals.used), "work charged to allowances")}</div>
       <div class="section"><div class="section__head"><div><span class="eyebrow">Portals</span><h2>Clients</h2></div></div>
       <div class="pf">${rows.map(({ slug, c, m, hl, live }) => `<button class="pfcard" data-slug="${slug}" style="--accent:${esc(c.client.accent || "#2175D9")}">
         <div class="pfcard__top"><span class="pfcard__name"><i class="dot"></i>${esc(c.client.name)}</span><span class="health health--${hl.k}">${hl.t}</span></div>
         ${m ? `<div><div class="meter"><i style="width:${Math.min(100, m.contractValue ? (m.used / m.contractValue) * 100 : 0)}%"></i></div><div class="meter-row"><span>${money(m.used)} committed of ${money(m.contractValue)}</span><span>${pct(m.pctTime)} of term</span></div></div>
-        <div class="pfcard__stats"><div><span>Phase</span><b style="font-size:14px;text-transform:capitalize">${m.tl.phase}</b></div><div><span>Live projects</span><b>${live}</b></div><div><span>Available now</span><b>${money(Math.max(0, m.availableNow))}</b></div></div>` : `<div class="pfcard__stats"><div><span>Type</span><b style="font-size:14px">Projects</b></div><div><span>Live projects</span><b>${live}</b></div><div><span>Delivered</span><b>${(c.projects || []).length - live}</b></div></div>`}
+        <div class="pfcard__stats"><div><span>Phase</span><b style="font-size:14px;text-transform:capitalize">${m.tl.phase}</b></div><div><span>Live projects</span><b>${live}</b></div><div><span>Available now</span><b>${money(Math.max(0, m.availableNow))}</b></div></div>` : `<div class="pfcard__stats"><div><span>Type</span><b style="font-size:14px">Project work</b></div><div><span>Live projects</span><b>${live}</b></div><div><span>Next delivery</span><b style="font-size:14px">${(() => { const n = (c.projects || []).filter((p) => !DONE.has(p.status) && p.expected_delivery).sort((a, b) => a.expected_delivery.localeCompare(b.expected_delivery))[0]; return n ? fmtShort(n.expected_delivery) : "—"; })()}</b></div></div>`}
         ${c.sample ? `<span class="chip chip--warn" style="align-self:flex-start">Sample figures</span>` : ""}</button>`)}
-      <a class="pfcard pfcard--add" href="#/admin/new" style="text-decoration:none">+ Add a client</a></div></div>`, {});
+      <a class="pfcard pfcard--add" href="#/admin/new" style="text-decoration:none">+ Add a client</a></div></div>`, { tabs: teamTabs("clients"), active: "clients" });
     $root.querySelectorAll(".pfcard[data-slug]").forEach((b) => (b.onclick = () => (location.hash = "#/c/" + b.dataset.slug)));
   }
 
@@ -382,13 +387,14 @@
     return tabs;
   }
   /* ---------------- client portal ---------------- */
-  function renderClient(slug, tab = "overview") {
+  function renderClient(slug, tab = "overview", pid) {
     const c = session.clients[slug]; if (!c) { location.hash = "#/"; return; }
     c.show ||= { money: !!c.retainer, projects: true, library: true, brief: true, updates: true, team: true };
     const team = isTeam() && !session.preview, internal = isTeam() ? session.internal[slug] : null;
     const m = c.retainer ? computeMoney(c.retainer, c.projects || [], internal) : null, tl = m?.tl, hl = health(m);
-    const projects = c.projects || [], live = projects.filter((p) => !DONE.has(p.status)), delivered = projects.filter((p) => DONE.has(p.status));
+    const projects = (c.projects || []).map((p) => Object.assign(p, { __slug: slug, __ret: !!c.retainer })), live = projects.filter((p) => !DONE.has(p.status)), delivered = projects.filter((p) => DONE.has(p.status));
     const tabs = portalTabs(slug, c, team);
+    if (tab === "p") { renderProject(slug, arguments[2], team); return; }
     if (!tabs.find((t) => t.id === tab)) tab = "overview";
     const sampleBanner = c.sample ? `<div class="banner">${warnIcon}<span>Sample figures: placeholders until the real scope is entered${team ? ` in <a href="#/c/${slug}/admin">Edit this hub</a>` : ""}.</span></div>` : "";
     const backLink = team ? `<a class="btn btn--ghost btn--sm" href="#/">← All clients</a>` : "";
@@ -465,11 +471,67 @@
     if (tab === "projects" && projects.length) {
       const draw = (f) => { const list = projects.filter((p) => f === "all" || (f === "live" ? !DONE.has(p.status) : p.status === f)).sort((a, b) => (b.pinned - a.pinned) || (a.expected_delivery || "9999").localeCompare(b.expected_delivery || "9999"));
         document.getElementById("pcards").innerHTML = list.length ? list.map(projectCard).join("") : `<div class="empty" style="grid-column:1/-1">Nothing here.</div>`;
-        document.getElementById("prows").innerHTML = list.map((p) => `<tr><td><b>${esc(p.name)}</b>${p.summary ? `<div class="sub">${esc(p.summary)}</div>` : ""}</td><td>${esc(p.department || "—")}</td><td>${pill(p.status)}</td><td>${fmtDate(p.expected_delivery)}</td><td class="num">${p.client_cost ? money(p.client_cost) : "TBC"}</td><td>${p.frame_link ? `<a class="tbl-link" href="${esc(p.frame_link)}" target="_blank" rel="noopener">Open ↗</a>` : "—"}</td></tr>`).join(""); };
+        document.getElementById("prows").innerHTML = list.map((p) => `<tr><td><b><a class="plain" href="#/c/${slug}/p/${esc(p.id)}">${esc(p.name)}</a></b>${p.summary ? `<div class="sub">${esc(p.summary)}</div>` : ""}</td><td>${esc(p.department || "—")}</td><td>${pill(p.status)}</td><td>${fmtDate(p.expected_delivery)}</td><td class="num">${p.client_cost ? money(p.client_cost) : "TBC"}</td><td>${p.frame_link ? `<a class="tbl-link" href="${esc(p.frame_link)}" target="_blank" rel="noopener">Open ↗</a>` : "—"}</td></tr>`).join(""); };
       draw("all"); document.querySelectorAll("#pfilters .fchip").forEach((b) => (b.onclick = () => { document.querySelectorAll("#pfilters .fchip").forEach((x) => x.setAttribute("aria-pressed", "false")); b.setAttribute("aria-pressed", "true"); draw(b.dataset.f); }));
     }
     window.scrollTo({ top: 0 });
   }
+
+
+  /* ---------------- project rundown ---------------- */
+  function renderProject(slug, pid, team) {
+    const c = session.clients[slug], p = (c.projects || []).find((x) => x.id === pid);
+    if (!p) { location.hash = `#/c/${slug}/projects`; return; }
+    const int = isTeam() && !session.preview ? session.internal[slug]?.projects?.[pid] : null;
+    const si = stageIndex(p.status), onHold = p.status === "On hold", done = DONE.has(p.status);
+    const dl = daysUntil(p.expected_delivery);
+    const dates = [["Brief received", p.brief_date], ["Shoot", p.shoot_date], ["First cut", p.draft_date], ["Delivery", p.expected_delivery]].filter(([, d]) => d);
+    const links = parseLines(p.links), actions = parseLines(p.client_actions), log = parseLines(p.log, "|").map(([d, t]) => (t ? { date: d, text: t } : { date: "", text: d })).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const lead = c.client.mood_lead || {};
+    const body = h`<div class="page-head"><div><a class="crumb" href="#/c/${slug}/projects">← ${esc(c.client.name)} · all projects</a><div style="display:flex;gap:10px;align-items:center;margin-top:10px">${pill(p.status)}${p.department ? `<span class="faint" style="font-size:13px;font-weight:600">${esc(p.department)}</span>` : ""}</div><h1 style="margin-top:10px">${esc(p.name)}</h1>${p.summary ? `<p class="lead">${esc(p.summary)}</p>` : ""}</div>
+      <div class="page-head__actions">${team ? `<a class="btn btn--ghost btn--sm" href="#/c/${slug}/admin">Edit</a>` : ""}${p.frame_link ? `<a class="btn btn--ink" href="${esc(p.frame_link)}" target="_blank" rel="noopener">Latest draft ${extIcon}</a>` : ""}</div></div>
+      <div class="grid grid--4">
+        ${stat("Delivery", p.expected_delivery ? fmtShort(p.expected_delivery) : "TBC", done ? `<span class="delta delta--good">Delivered</span>` : dl == null ? "date to confirm" : dl < 0 ? `<span class="delta delta--bad">${-dl} days overdue</span>` : dl === 0 ? `<span class="delta delta--warn">Today</span>` : `in ${dl} day${dl === 1 ? "" : "s"}`, "card--ink")}
+        ${stat("Stage", onHold ? "On hold" : si >= 0 ? STAGES[si].k : p.status, onHold ? "paused for now" : si >= 0 && si < STAGES.length - 1 ? `next: ${STAGES[si + 1].k}` : "complete")}
+        ${stat(c.retainer ? "Cost to retainer" : "Cost", p.client_cost ? money(p.client_cost) : "TBC", c.retainer && p.charge_date ? `charged to ${mlabel(p.charge_date.slice(0, 7))}` : c.retainer && p.expected_delivery ? `charged to ${mlabel(p.expected_delivery.slice(0, 7))}` : "")}
+        ${int ? stat("Margin", p.client_cost && int.cost_to_mood != null && int.cost_to_mood !== "" ? pct((p.client_cost - int.cost_to_mood) / p.client_cost) : "—", `<span class="chip" style="background:var(--magenta);color:#fff">Mood only</span> ${int.cost_to_mood != null && int.cost_to_mood !== "" ? money(int.cost_to_mood) + " cost" : "no cost logged"}`) : stat("Deliverables", (p.deliverables || []).length || "—", (p.deliverables || []).length ? "in this project" : "to be agreed")}</div>
+      <section class="card section"><div class="card__head"><div><span class="eyebrow">Where it is</span><h2>Production stages</h2></div>${p.next_step ? `<span class="muted" style="font-size:13px">Next: <b>${esc(p.next_step)}</b></span>` : ""}</div>
+        <ol class="stages ${onHold ? "hold" : ""}">${STAGES.map((st, i) => `<li class="${i < si ? "done" : i === si ? "now" : ""}"><i></i><span>${st.k}</span></li>`).join("")}</ol></section>
+      <div class="grid grid--main section">
+        <div style="display:grid;gap:16px">
+          ${(p.deliverables || []).length ? `<section class="card"><div class="card__head"><h2>Deliverables</h2></div><ul class="checklist">${p.deliverables.map((d) => `<li class="${done ? "done" : ""}"><i></i>${esc(d)}</li>`).join("")}</ul></section>` : ""}
+          <section class="card"><div class="card__head"><h2>Progress</h2></div>${log.length ? `<div class="feed">${log.map((u) => `<div class="feed__item"><time>${u.date ? fmtShort(u.date) : ""}</time><p>${esc(u.text)}</p></div>`).join("")}</div>` : `<p class="faint">Updates on this project will appear here.</p>`}</section>
+          ${links.length ? `<section class="card"><div class="card__head"><h2>Links</h2></div><div class="linklist">${links.map(([l, u]) => `<a href="${esc(u || l)}" target="_blank" rel="noopener">${esc(l)} ${extIcon}</a>`).join("")}</div></section>` : ""}</div>
+        <div style="display:grid;gap:16px">
+          <section class="card ${actions.length ? "card--accent" : ""}"><div class="card__head"><h2>What we need from you</h2></div>${actions.length ? `<ul class="checklist">${actions.map(([t, d]) => `<li><i></i><div>${esc(t)}${d ? `<span class="sub">${esc(d)}</span>` : ""}</div></li>`).join("")}</ul>` : `<p class="faint">Nothing right now.</p>`}</section>
+          ${dates.length ? `<section class="card"><div class="card__head"><h2>Key dates</h2></div><dl class="kv">${dates.map(([l, d]) => `<dt>${l}</dt><dd>${fmtDate(d)}</dd>`).join("")}</dl></section>` : ""}
+          <section class="card"><div class="card__head"><h3>Your producer</h3></div><dl class="kv"><dt>Name</dt><dd>${esc(lead.name || "Mood Studio")}</dd><dt>Email</dt><dd><a href="mailto:${esc(lead.email || "hello@moodfilms.co.uk")}?subject=${encodeURIComponent(p.name)}">${esc(lead.email || "hello@moodfilms.co.uk")}</a></dd></dl></section>
+          ${int?.note ? `<section class="card" style="border-color:color-mix(in srgb, var(--magenta) 40%, transparent)"><div class="card__head"><h3>Internal note</h3></div><p class="internal-note">${esc(int.note)}</p></section>` : ""}</div></div>`;
+    shell(body, { client: c, tabs: portalTabs(slug, c, team), active: "projects" });
+    window.scrollTo({ top: 0 });
+  }
+
+  /* ---------------- all projects (team) ---------------- */
+  function renderTracker(filter = "live") {
+    const all = [];
+    for (const [slug, c] of Object.entries(session.clients)) for (const p of c.projects || []) all.push({ ...p, slug, client: c.client.name, accent: c.client.accent, int: session.internal[slug]?.projects?.[p.id] || {} });
+    const live = all.filter((p) => !DONE.has(p.status)), inProd = live.filter((p) => ["Pre-production", "In production", "In post", "In grade"].includes(p.status));
+    const month = isoToday.slice(0, 7), dueMonth = live.filter((p) => (p.expected_delivery || "").startsWith(month)), overdue = live.filter((p) => p.expected_delivery && p.expected_delivery < isoToday);
+    const rev = live.reduce((s, p) => s + (+p.client_cost || 0), 0), cost = live.reduce((s, p) => s + (+p.int.cost_to_mood || 0), 0);
+    const list = (filter === "all" ? all : filter === "live" ? live : filter === "overdue" ? overdue : filter === "month" ? dueMonth : all.filter((p) => p.status === filter)).sort((a, b) => (a.expected_delivery || "9999").localeCompare(b.expected_delivery || "9999"));
+    const chip = (f, label, n) => `<button class="fchip" aria-pressed="${filter === f}" data-f="${f}">${label} <span class="faint">${n}</span></button>`;
+    const body = h`<div class="page-head"><div><span class="eyebrow">Mood Studio · internal</span><h1>All projects</h1><p class="lead">Every job across every client, in delivery order. Click a project for its rundown; each client sees only their own.</p></div>
+      <div class="page-head__actions"><a class="btn btn--ghost" href="#/">Clients</a><a class="btn btn--ink" href="#/admin/new">+ Add a client</a></div></div>
+      <div class="grid grid--4" style="margin-bottom:24px">${stat("Live projects", live.length, `${inProd.length} in production or post`, "card--ink")}${stat("Due this month", dueMonth.length, overdue.length ? `<span class="delta delta--bad">${overdue.length} overdue</span>` : `<span class="delta delta--good">nothing overdue</span>`)}${stat("Live revenue", money(rev), "cost to clients of live work")}${stat("Live margin", rev ? pct((rev - cost) / rev) : "—", `${money(cost)} cost to Mood logged`)}</div>
+      <div class="filters">${chip("live", "Live", live.length)}${chip("month", "Due this month", dueMonth.length)}${chip("overdue", "Overdue", overdue.length)}${STATUSES.filter((st) => all.some((p) => p.status === st)).map((st) => chip(st, st, all.filter((p) => p.status === st).length)).join("")}${chip("all", "Everything", all.length)}</div>
+      <section class="card section" style="margin-top:20px">${list.length ? `<div class="table-wrap"><table><thead><tr><th>Project</th><th>Client</th><th>Stage</th><th>Delivery</th><th>Next step</th><th class="num">Cost</th><th class="num">Mood cost</th><th class="num">Margin</th></tr></thead><tbody>
+        ${list.map((p) => { const d = daysUntil(p.expected_delivery), mg = p.client_cost && p.int.cost_to_mood != null && p.int.cost_to_mood !== "" ? (p.client_cost - p.int.cost_to_mood) / p.client_cost : null; return `<tr><td><b><a class="plain" href="#/c/${p.slug}/p/${esc(p.id)}">${esc(p.name)}</a></b>${p.department ? `<div class="sub">${esc(p.department)}</div>` : ""}</td><td><span class="clientdot" style="--accent:${esc(p.accent || "#2175D9")}"><i class="dot"></i>${esc(p.client)}</span></td><td>${pill(p.status)}</td><td>${p.expected_delivery ? `<b>${fmtShort(p.expected_delivery)}</b><div class="sub">${DONE.has(p.status) ? "delivered" : d < 0 ? `<span style="color:var(--bad)">${-d}d overdue</span>` : d === 0 ? "today" : `in ${d}d`}</div>` : "TBC"}</td><td><div class="sub" style="max-width:28ch">${esc(p.next_step || "")}</div></td><td class="num">${p.client_cost ? money(p.client_cost) : "—"}</td><td class="num">${p.int.cost_to_mood != null && p.int.cost_to_mood !== "" ? money(p.int.cost_to_mood) : "—"}</td><td class="num">${mg == null ? "—" : `<span class="delta delta--${mg >= 0.4 ? "good" : mg > 0.2 ? "warn" : "bad"}">${pct(mg)}</span>`}</td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty">Nothing here. Add projects from a client's <b>Edit this hub</b>.</div>`}</section>
+      <div class="section"><div class="section__head"><div><span class="eyebrow">Quick add</span><h2>Add a project to…</h2></div></div><div class="filters">${Object.entries(session.clients).sort().map(([slug, c]) => `<a class="fchip" href="#/c/${slug}/admin?add=project" style="text-decoration:none">${esc(c.client.name)} +</a>`).join("")}</div></div>`;
+    shell(body, { tabs: teamTabs("projects"), active: "projects" });
+    document.querySelectorAll(".fchip[data-f]").forEach((b) => (b.onclick = () => renderTracker(b.dataset.f)));
+    window.scrollTo({ top: 0 });
+  }
+  const teamTabs = (active) => [{ id: "clients", label: "Clients", href: "#/" }, { id: "projects", label: "All projects", href: "#/projects" }, { id: "admin", label: "Logins & settings", href: "#/admin", cls: "tab--admin" }];
 
   /* ---------------- editor (team) ---------------- */
   const drafts = {};
@@ -486,14 +548,19 @@
   }
   function renderEditor(slug) {
     const c = session.clients[slug];
+    const wantAdd = location.hash.includes("?add=project");
     const d = (drafts[slug] ||= { data: structuredClone(c), internal: structuredClone(session.internal[slug] || { projects: {}, notes: "", risks: [] }) });
-    const data = d.data, int = d.internal; data.show ||= { money: !!data.retainer, projects: true, library: true, brief: true, updates: true, team: true };
+    const data = d.data, int = d.internal; if (wantAdd) { (data.projects ||= []).push({ id: "p-" + randomId().slice(0, 8), name: "", status: "Briefing", pinned: false, deliverables: [] }); history.replaceState(null, "", location.hash.replace("?add=project", "")); } data.show ||= { money: !!data.retainer, projects: true, library: true, brief: true, updates: true, team: true };
     const tabs = portalTabs(slug, c, true);
     const projBlock = (p, i) => `<div class="block" data-block="projects" data-i="${i}"><div class="block__head"><b>${esc(p.name || "New project")}</b><button type="button" class="block__del" data-del="projects" data-i="${i}">Remove</button></div><div class="fgrid">
       ${inp("Project name", `projects.${i}.name`, p.name, { wide: true })}${inp("Department / team", `projects.${i}.department`, p.department)}${inp("Status", `projects.${i}.status`, p.status || "Briefing", { options: STATUSES })}
       ${inp("Expected delivery", `projects.${i}.expected_delivery`, p.expected_delivery, { type: "date" })}${inp("Charge to month of", `projects.${i}.charge_date`, p.charge_date, { type: "date", hint: "Leave blank to use the delivery date" })}
       ${inp("Cost to client (£)", `projects.${i}.client_cost`, p.client_cost, { type: "number" })}${inp("Frame / draft link", `projects.${i}.frame_link`, p.frame_link, { placeholder: "https://" })}
       ${inp("Summary", `projects.${i}.summary`, p.summary, { type: "textarea", wide: true })}${inp("Deliverables", `projects.${i}.deliverables`, (p.deliverables || []).join(", "), { hint: "Comma separated" })}${inp("Next step", `projects.${i}.next_step`, p.next_step)}
+      ${inp("Brief received", `projects.${i}.brief_date`, p.brief_date, { type: "date" })}${inp("Shoot date", `projects.${i}.shoot_date`, p.shoot_date, { type: "date" })}${inp("First cut", `projects.${i}.draft_date`, p.draft_date, { type: "date" })}
+      <div class="f wide"><label>What we need from the client (one per line)</label><textarea data-path="projects.${i}.client_actions" placeholder="Sign off the treatment | by 5 Dec">${esc(p.client_actions || "")}</textarea><span class="hint">Add “| by when” after a line to show a date</span></div>
+      <div class="f wide"><label>Progress log (one per line)</label><textarea data-path="projects.${i}.log" placeholder="${isoToday} | Shoot day confirmed at the Leeds office">${esc(p.log || "")}</textarea><span class="hint">Start each line with the date, then |</span></div>
+      <div class="f wide"><label>Links (one per line)</label><textarea data-path="projects.${i}.links" placeholder="Treatment | https://… ">${esc(p.links || "")}</textarea></div>
       ${chk("Pin to the top of the overview", `projects.${i}.pinned`, p.pinned)}
       <div class="wide" style="border-top:1px dashed var(--line);padding-top:12px;margin-top:4px"><span class="eyebrow" style="color:var(--magenta)">Internal only</span></div>
       ${inp("Cost to Mood (£)", `__int.projects.${p.id}.cost_to_mood`, int.projects?.[p.id]?.cost_to_mood, { type: "number" })}${inp("Internal note", `__int.projects.${p.id}.note`, int.projects?.[p.id]?.note)}</div></div>`;
@@ -546,7 +613,8 @@
       body = h`<div class="page-head"><div><span class="eyebrow" style="color:var(--magenta)">Admin</span><h1>Add a client</h1><p class="lead">Creates their hub and their login. Everything is encrypted in this browser before it reaches GitHub.</p></div><div class="page-head__actions"><a class="btn btn--ghost btn--sm" href="#/admin">← Clients &amp; logins</a></div></div>
       ${gh.token() ? "" : `<div class="notice warn" style="margin-bottom:20px">Adding a client from the browser needs a GitHub token. <a href="#/admin/settings">Add one in Settings</a>, or add the client in config/clients.json on the Mac and run npm run publish.</div>`}
       <form class="ed" id="newc" style="max-width:820px"><section class="card"><div class="card__head"><h2>Who</h2></div><div class="fgrid">${inp("Client name", "name", "", { placeholder: "e.g. Superdrug" })}${inp("Accent colour", "accent", "#2175D9", { type: "color" })}${inp("Username", "username", "", { hint: "What they type to sign in; lower-case" })}${inp("Passcode", "password", "", { hint: "Pattern so far: ClientxMood26" })}</div></section>
-        <section class="card"><div class="card__head"><h2>Retainer</h2></div><div class="fgrid">${chk("This client is on a retainer", "has_retainer", true)}${inp("Start date", "start_date", isoToday.slice(0, 8) + "01", { type: "date" })}${inp("Months", "initial_months", 3, { type: "number" })}${inp("Monthly value (£)", "monthly_value", 0, { type: "number" })}${inp("Extension months (0 for none)", "extension_months", 0, { type: "number" })}</div><p class="ed__help" style="margin-top:10px">Projects, payments, films and updates are added afterwards in “Edit this hub”.</p></section>
+        <section class="card"><div class="card__head"><h2>First project</h2></div><div class="fgrid">${inp("Project name", "p_name", "", { wide: true, placeholder: "e.g. Spring recruitment film" })}${inp("Expected delivery", "p_delivery", "", { type: "date" })}${inp("Cost to client (£)", "p_cost", "", { type: "number" })}${inp("Status", "p_status", "Briefing", { options: STATUSES })}</div><p class="ed__help" style="margin-top:10px">Optional. Everything else about the project is filled in afterwards in “Edit this hub”.</p></section>
+        <section class="card"><div class="card__head"><h2>Retainer</h2></div><div class="fgrid">${chk("This client is on a retainer (monthly allowance)", "has_retainer", false)}${inp("Start date", "start_date", isoToday.slice(0, 8) + "01", { type: "date" })}${inp("Months", "initial_months", 3, { type: "number" })}${inp("Monthly value (£)", "monthly_value", 0, { type: "number" })}${inp("Extension months (0 for none)", "extension_months", 0, { type: "number" })}</div><p class="ed__help" style="margin-top:10px">Leave unticked for project-by-project clients; their hub shows projects, films and briefing without the money tab.</p></section>
         <div class="savebar"><button class="btn btn--lime" id="create">Create client &amp; login</button><span class="msg" id="msg"></span></div></form>`;
     } else if (sub === "settings") {
       body = h`<div class="page-head"><div><span class="eyebrow" style="color:var(--magenta)">Admin</span><h1>Publishing settings</h1><p class="lead">The hub publishes straight to its GitHub repository from your browser. It needs a token that can write to that one repository.</p></div><div class="page-head__actions"><a class="btn btn--ghost btn--sm" href="#/admin">← Clients &amp; logins</a></div></div>
@@ -560,7 +628,7 @@
       ${!slugs.length ? `<div class="empty">No clients yet.</div>` : ""}</div>
       <p class="muted" style="margin-top:20px;font-size:13px">The team login itself is set in <code class="k">config/clients.json</code> on the Mac (run <code class="k">npm run publish</code> after changing it).</p>`;
     }
-    shell(body, { tabs: [], active: "" });
+    shell(body, { tabs: teamTabs("admin"), active: "admin" });
     document.getElementById("save-tok")?.addEventListener("click", () => { gh.setToken(document.getElementById("tok").value.trim()); document.getElementById("tok-msg").textContent = "Saved in this browser."; });
     document.getElementById("clear-tok")?.addEventListener("click", () => { gh.setToken(""); document.getElementById("tok").value = ""; document.getElementById("tok-msg").textContent = "Forgotten."; });
     document.getElementById("test-tok")?.addEventListener("click", async () => { const el = document.getElementById("tok-msg"); gh.setToken(document.getElementById("tok").value.trim()); el.textContent = "Testing…"; try { el.textContent = (await gh.test()) === "ok" ? "Connected: this token can publish." : await gh.test(); } catch (e) { el.textContent = e.message; } });
@@ -572,7 +640,7 @@
       if (!name || !username || !v.password) { msg.className = "msg err"; msg.textContent = "Name, username and passcode are all needed."; return; }
       if (!gh.token()) { msg.className = "msg err"; msg.textContent = "Add a GitHub token in Settings first."; return; }
       btn.disabled = true; msg.className = "msg"; msg.textContent = "Creating keys, encrypting and publishing…";
-      try { await createClient({ name, slug, username, password: v.password, accent: v.accent, retainer: v.has_retainer ? { start_date: v.start_date, initial_months: v.initial_months, monthly_value: v.monthly_value, extension_months: v.extension_months } : null }); location.hash = `#/c/${slug}/admin`; }
+      try { await createClient({ name, slug, username, password: v.password, accent: v.accent, retainer: v.has_retainer ? { start_date: v.start_date, initial_months: v.initial_months, monthly_value: v.monthly_value, extension_months: v.extension_months } : null, project: v.p_name ? { id: "p-" + randomId().slice(0, 8), name: v.p_name.trim(), status: v.p_status || "Briefing", expected_delivery: v.p_delivery || null, client_cost: +v.p_cost || 0, pinned: true, deliverables: [] } : null }); location.hash = `#/c/${slug}/admin`; }
       catch (err) { msg.className = "msg err"; msg.textContent = err.message; btn.disabled = false; } };
     window.scrollTo({ top: 0 });
   }
@@ -581,9 +649,10 @@
   function route() {
     if (!session.kind) return renderGate();
     const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-    if (session.kind === "client") { const slug = Object.keys(session.clients)[0]; if (parts[0] !== "c" || parts[1] !== slug) { location.hash = `#/c/${slug}`; return; } return renderClient(slug, ["internal", "admin"].includes(parts[2]) ? "overview" : parts[2] || "overview"); }
-    if (parts[0] === "c" && parts[1]) { if (session.preview && ["internal", "admin"].includes(parts[2])) parts[2] = "overview"; return renderClient(parts[1], parts[2] || "overview"); }
+    if (session.kind === "client") { const slug = Object.keys(session.clients)[0]; if (parts[0] !== "c" || parts[1] !== slug) { location.hash = `#/c/${slug}`; return; } return renderClient(slug, ["internal", "admin"].includes(parts[2]) ? "overview" : parts[2] || "overview", parts[3]); }
+    if (parts[0] === "c" && parts[1]) { if (session.preview && ["internal", "admin"].includes(parts[2])) parts[2] = "overview"; return renderClient(parts[1], (parts[2] || "overview").split("?")[0], parts[3]); }
     session.preview = false;
+    if (parts[0] === "projects") return renderTracker();
     if (parts[0] === "admin") return renderAdmin(parts[1]);
     renderPortfolio();
   }
