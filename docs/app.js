@@ -90,13 +90,17 @@
       if (!r.ok) throw new Error(`GitHub said ${r.status}: ${(await r.json().catch(() => ({}))).message || r.statusText}`);
       return r.status === 204 ? null : r.json();
     },
+    shas: {},
     async put(file, text, message) {
       const { repo, branch, dir } = gh.hub(); const p = `/repos/${repo}/contents/${dir}/${file}`;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const cur = await gh.api("GET", p + `?ref=${branch}`);
-        try { return await gh.api("PUT", p, { message, branch, content: b64(enc.encode(text)), sha: cur?.sha }); }
-        catch (e) { if (attempt || !/409|422/.test(e.message)) throw e; }
+      let lastErr;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (attempt) { delete gh.shas[file]; await new Promise((r) => setTimeout(r, 1500 * attempt)); }
+        const sha = gh.shas[file] ?? (await gh.api("GET", p + `?ref=${branch}&t=${Date.now()}`))?.sha;
+        try { const r = await gh.api("PUT", p, { message, branch, content: b64(enc.encode(text)), sha }); gh.shas[file] = r?.content?.sha; return r; }
+        catch (e) { lastErr = e; if (!/409|422/.test(e.message)) throw e; }
       }
+      throw new Error(lastErr.message + " (GitHub was still catching up; try Publish again in a moment)");
     },
     async del(file, message) {
       const { repo, branch, dir } = gh.hub(); const p = `/repos/${repo}/contents/${dir}/${file}`;
