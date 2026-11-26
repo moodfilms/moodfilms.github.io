@@ -12,16 +12,20 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cfg = JSON.parse(readFileSync(path.join(root, "config", "clients.json"), "utf8"));
 const hub = cfg.hub || {};
 if (!hub.repo) { console.log("No hub.repo in config/clients.json; nothing to pull."); process.exit(0); }
-const base = `https://raw.githubusercontent.com/${hub.repo}/${hub.branch || "main"}/${hub.dir || "docs/data"}/`;
+// Read through the GitHub API rather than raw.githubusercontent.com, which caches files for minutes.
+import { execSync } from "node:child_process";
+let token = process.env.GITHUB_TOKEN || ""; try { token ||= execSync("gh auth token", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch {}
+const api = `https://api.github.com/repos/${hub.repo}/contents/${hub.dir || "docs/data"}/`;
+const get = (file) => fetch(api + file + `?ref=${hub.branch || "main"}`, { headers: { Accept: "application/vnd.github.raw+json", ...(token ? { Authorization: "Bearer " + token } : {}) }, cache: "no-store" });
 const out = path.join(root, "docs", "data");
 
-const r = await fetch(base + "manifest.json?t=" + Date.now(), { cache: "no-store" });
+const r = await get("manifest.json");
 if (!r.ok) { console.log(`Nothing live yet (${r.status}); skipping pull.`); process.exit(0); }
 const m = await r.json();
 mkdirSync(out, { recursive: true }); mkdirSync(path.join(root, "data"), { recursive: true });
 for (const f of readdirSync(out)) unlinkSync(path.join(out, f));
 writeFileSync(path.join(out, "manifest.json"), JSON.stringify(m));
-for (const b of Object.values(m.bundles)) writeFileSync(path.join(out, b.file), await (await fetch(base + b.file + "?t=" + Date.now())).text());
+for (const b of Object.values(m.bundles)) writeFileSync(path.join(out, b.file), await (await get(b.file)).text());
 
 const team = m.accounts[await sha("acct:" + cfg.team.username.toLowerCase())];
 if (!team) { console.log("Live manifest has no account for the team username in the config; bundles pulled, data not decrypted."); process.exit(0); }
