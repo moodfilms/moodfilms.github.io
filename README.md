@@ -3,7 +3,7 @@
 One passcode-locked site, one dashboard per client, and a team login that sees and edits everything.
 Built for the Randstad retainer first; any client is added from the browser in a minute.
 
-Live: https://moodfilms.github.io/mood-client-hub/ (moving to https://hub.moodstudio.co, see *Domain*)
+Live: https://moodfilms.github.io/ (moving to https://hub.moodstudio.co, see *Domain*)
 
 ## What it tracks
 
@@ -31,7 +31,7 @@ client's username and passcode, or removes one. Project-based is the default; ti
 for clients on a monthly allowance.
 
 Publishing needs a GitHub token once per browser: Settings → Developer settings → Fine-grained
-tokens → repository `moodfilms/mood-client-hub` only → Contents: Read and write. Paste it under
+tokens → repository `moodfilms/moodfilms.github.io` only → Contents: Read and write. Paste it under
 **Clients & logins → Settings**. It stays in that browser only.
 
 ## Editing from the Mac (optional)
@@ -62,7 +62,7 @@ The hub is meant to live at `hub.moodstudio.co` (moodstudio.co's DNS is on Cloud
 
 1. Cloudflare → moodstudio.co → DNS → Add record: **CNAME**, name `hub`, target `moodfilms.github.io`, proxy **DNS only**.
 2. `sh scripts/domain.sh` — checks the record, sets the custom domain on GitHub Pages, commits the CNAME file.
-3. GitHub issues the certificate within ~15 minutes; then `gh api -X PUT repos/moodfilms/mood-client-hub/pages -F https_enforced=true`.
+3. GitHub issues the certificate within ~15 minutes; then `gh api -X PUT repos/moodfilms/moodfilms.github.io/pages -F https_enforced=true`.
 
 Until step 1 is done the github.io address keeps working; after step 2 it redirects to the new one.
 

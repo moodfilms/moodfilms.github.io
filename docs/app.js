@@ -88,7 +88,7 @@
   const gh = {
     token: () => { try { return localStorage.getItem("mood-hub-gh") || ""; } catch { return ""; } },
     setToken: (t) => { try { t ? localStorage.setItem("mood-hub-gh", t) : localStorage.removeItem("mood-hub-gh"); } catch {} },
-    hub: () => manifest.hub || { repo: "moodfilms/mood-client-hub", branch: "main", dir: "docs/data" },
+    hub: () => manifest.hub || { repo: "moodfilms/moodfilms.github.io", branch: "main", dir: "docs/data" },
     async api(method, path, body) {
       const r = await fetch("https://api.github.com" + path, { method, headers: { Authorization: "Bearer " + gh.token(), Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
       if (r.status === 404 && method === "GET") return null;
