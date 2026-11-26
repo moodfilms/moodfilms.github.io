@@ -335,8 +335,8 @@ tfoot td { font-weight: 700; border-top: 1px solid var(--line-strong); backgroun
   .timeline { padding-top: 8px; }
   .timeline__seglabel { display: none; }
   .timeline__mark::after { display: none; }
-  .timeline__months span { font-size: 10px; }
-  .timeline__legend { display: flex; gap: 14px; margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--txt-3); }
+  .timeline__months span { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .timeline__legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 40px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--txt-3); }
   .topbar__in { height: 56px; gap: 10px; }
   .topbar__client .faint { display: none; }
   .topbar__user { font-size: 0; gap: 0; }
